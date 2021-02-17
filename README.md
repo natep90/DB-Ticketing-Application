@@ -1,4 +1,4 @@
 # DB-Application
 PostgreSQL DB interface application
 - This is an Python application built to interact with a PostgreSQL DB
-- The concept is that the app acts as a ticketing system for a fictional sporting event
+- Conceptually, the application acts as a ticketing system for a series of fictional sporting events
