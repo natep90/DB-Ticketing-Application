@@ -1,0 +1,98 @@
+---------- DATA FOR TESTING ----------
+INSERT INTO event (ecode, edesc, elocation, edate, etime, emax)
+VALUES ('A100', '100 metres sprint', 'Stadium 1', '2020-12-01', '14:00', 1000),
+	   ('A110', '110 metre hurdles', 'Stadium 1', '2020-12-01', '15:00', 1000),
+	   ('A200', '200 metres sprint', 'Stadium 1', '2020-12-01', '14:00', 1000),
+	   ('A400', '400 metres race', 'Stadium 1', '2020-12-01', '14:00', 1000),
+	   ('A800', '800 metres race', 'Stadium 2', '2020-12-03', '14:00', 1000),
+	   ('JLON', 'long jump event', 'Stadium 3', '2020-12-01', '12:00', 500),
+	   ('JTRI', 'triple jump event', 'Stadium 3', '2020-12-01', '14:00', 500),
+	   ('JHIG', 'high jump event', 'Stadium 1', '2020-12-01', '16:00', 500),
+	   ('TJAV', 'javelin competition', 'Stadium 1', '2020-12-01', '14:00', 1000),
+	   ('TSHO', 'shot put competition', 'Stadium 1', '2020-12-01', '14:00', 1000),
+	   ('TDIS', 'discus competition', 'Stadium 1', '2020-12-14', '09:00', 800);
+
+INSERT INTO spectator (sno, sname, semail)
+VALUES (101, 'nate page', 'np123@gmail.com'),
+	   (102, 'adam smith', 'smith1@gmail.com'),
+	   (103, 'karen brady', 'kb845@gmail.com'),
+	   (104, 'eric trump', 'trump2@gmail.com'),
+	   (105, 'natalia wilson', 'nwilson@gmail.com'),
+	   (106, 'emily browning', 'ebro33@gmail.com'),
+	   (107, 'sid willis', 'sw965@gmail.com'),
+	   (108, 'carl cox', 'ccme@gmail.com'),
+	   (109, 'tiffany lincoln', 'tiffl@gmail.com'),
+	   (110, 'james bond', 'jb007@gmail.com');
+
+INSERT INTO ticket (tno, ecode, sno)
+VALUES (1, 'A200', 102),
+ 	   (2, 'A400', 108),
+	   (3, 'TSHO', 109),
+	   (4, 'TJAV', 108),
+       (5, 'A110', 105),
+	   (6, 'TJAV', 103),
+	   (7, 'TSHO', 101),
+	   (8, 'A100', 101),
+	   (9, 'JLON', 110),
+	   (10, 'A800', 104);
+
+---------- TEST QUERIES ----------
+--A) INSERT A NEW SPECTATOR
+INSERT INTO spectator (sno, sname, semail)
+VALUES (138, 'andy pipkin', 'pipkin@gmail.com');
+
+--B) INSERT A NEW event
+INSERT INTO event (ecode, edesc, elocation, edate, etime, emax)
+VALUES ('SHOO', 'shooting competition', 'New Forest', '2020-12-17', '13:30', 100);
+
+--C) DELETE A SPECTATOR (ONLY DELETE IF SPECTATOR HAS NO VALID TICKETS)
+DELETE FROM spectator WHERE sno=138;
+
+--D) DELETE AN EVENT (ENSURE ALL TICKETS ARE CANCELLED FIRST)
+DELETE FROM event WHERE ecode='SHOO';
+
+--E) ISSUE A TICKET
+INSERT INTO ticket (tno, ecode, sno)
+VALUES (17, 'A110', 138);
+
+--P) SHOW NUMBER OF SPECTATORS LIABLE TO TRAVEL TO EACH LOCATION/ON EACH DAY
+SELECT event.edate AS event_data, event.elocation as event_location, COUNT(spectator.sno) as expected_spectators FROM spectator
+INNER JOIN ticket ON spectator.sno=ticket.sno
+RIGHT JOIN event ON ticket.ecode=event.ecode
+GROUP BY event.edate, event.elocation
+ORDER BY event.edate, event.elocation;
+
+--Q) SHOW NUMBER OF TICKETS ISSUES FOR EACH EVENT (IN ORDER OF edesc)
+SELECT event.ecode, event.edesc AS event_description, COUNT(ticket.tno) AS tickets_issued FROM ticket
+FULL JOIN event ON ticket.ecode=event.ecode
+GROUP BY event.ecode
+ORDER BY event.edesc;
+
+--R) SHOW NUMBER OF TICKETS ISSUED FOR A SPECIFIC EVENT
+SELECT event.ecode, event.edesc AS event_description, COUNT(ticket.tno) AS tickets_issued FROM ticket
+FULL JOIN event ON ticket.ecode=event.ecode
+WHERE event.ecode='A800'
+GROUP BY event.ecode;
+
+--S) SPECTATOR ITINERARY FOR A GIVEN SPECTATOR
+CREATE TABLE IF NOT EXISTS spectator_itinerary AS
+(SELECT ticket.sno AS spectator_number, spectator.sname AS name, event.edesc AS event_description, event.elocation AS location, event.edate AS date, event.etime AS start_time FROM ticket
+LEFT JOIN event ON ticket.ecode=event.ecode
+LEFT JOIN spectator ON ticket.sno = spectator.sno WHERE spectator.sno=105);
+SELECT * FROM spectator_itinerary;
+
+--T) CHECK IF A GIVEN TICKET (BY TNO) IS VALID OR CANCELLED
+SELECT * FROM check_ticket_validity(20);
+
+--V) VIEW DETAILS OF CANCELLED TICKETS FOR A GIVEN EVENT
+SELECT * FROM cancel WHERE ecode='TJAV';
+
+--X) SHUT DOWN SERVER PROGRAM
+DONE VIA PYTHON
+
+--Z) EMPTY ALL TABLES (REMOVE SPECTATOR ITINERARY TABLE IF IT EXISTS)
+TRUNCATE event CASCADE;
+TRUNCATE spectator CASCADE;
+TRUNCATE ticket CASCADE;
+TRUNCATE cancel CASCADE;
+DROP TABLE IF EXISTS spectator_itinerary;

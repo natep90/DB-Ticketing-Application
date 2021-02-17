@@ -1,0 +1,90 @@
+CREATE SCHEMA IF NOT EXISTS pierian;
+
+SET SEARCH_PATH to pierian;
+
+CREATE TABLE IF NOT EXISTS event (
+    ecode CHAR(4) PRIMARY KEY,
+    edesc VARCHAR(20) NOT NULL,
+    elocation VARCHAR(20) NOT NULL,
+    edate DATE NOT NULL CHECK (edate >= '2020-12-01' and edate < '2021-01-01'),
+    etime TIME NOT NULL CHECK (etime >= '09:00'),
+    emax SMALLINT NOT NULL CHECK (emax > 0 and emax <= 1000)
+);
+
+CREATE TABLE IF NOT EXISTS spectator (
+    sno INTEGER PRIMARY KEY,
+    sname VARCHAR(20) NOT NULL,
+    semail VARCHAR(20) NOT NULL   
+);
+
+CREATE TABLE IF NOT EXISTS ticket (
+    tno INTEGER PRIMARY KEY,
+    ecode CHAR(4) NOT NULL,
+    sno INTEGER NOT NULL,
+    CONSTRAINT FK_ecode FOREIGN KEY (ecode) REFERENCES event (ecode) ON DELETE CASCADE,
+    CONSTRAINT FK_sno FOREIGN KEY (sno) REFERENCES spectator (sno),
+    CONSTRAINT uniq_ticket UNIQUE (ecode, sno)
+);
+
+CREATE TABLE IF NOT EXISTS cancel (
+    tno INTEGER NOT NULL,
+    ecode CHAR(4) NOT NULL,
+    sno INTEGER,
+    cdate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    cuser VARCHAR(128) DEFAULT CURRENT_USER,
+    CONSTRAINT p_key PRIMARY KEY (tno, cdate),
+    CONSTRAINT sno_fk FOREIGN KEY (sno) REFERENCES spectator (sno) ON DELETE SET NULL
+);
+
+--TRIGGER FUNCTION TO ADD CANCELLED TICKETS TO CANCEL TABLE
+CREATE OR REPLACE FUNCTION add_to_cancel_table ()
+RETURNS trigger AS $$
+BEGIN
+INSERT INTO cancel(tno, ecode, sno)
+SELECT tno, ecode, sno FROM ticket
+WHERE ticket.tno = OLD.tno;
+RETURN OLD;
+END $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER add_to_cancel_table
+BEFORE DELETE ON ticket
+FOR EACH ROW EXECUTE PROCEDURE
+add_to_cancel_table();
+
+--FUNCTION TO ASSESS TICKET VALIDITY
+CREATE OR REPLACE FUNCTION check_ticket_validity(ticket_number INTEGER)
+RETURNS TABLE(t_num INTEGER, validity VARCHAR(9))
+AS $$
+BEGIN
+CREATE TABLE IF NOT EXISTS ticket_validity (
+	t_num INTEGER,
+	validity VARCHAR(9)
+);
+IF EXISTS (SELECT tno FROM ticket WHERE ticket.tno=ticket_number) THEN
+	INSERT INTO ticket_validity VALUES(ticket_number, 'valid');
+	RETURN QUERY
+	SELECT * FROM ticket_validity;
+ELSIF EXISTS (SELECT tno FROM cancel WHERE cancel.tno=ticket_number) THEN
+	INSERT INTO ticket_validity VALUES(ticket_number, 'cancelled');
+	RETURN QUERY
+	SELECT * FROM ticket_validity;
+END IF;
+DROP TABLE IF EXISTS ticket_validity;
+END;
+$$ LANGUAGE plpgsql;
+
+--TRIGGER FUNCTION TO PREVENT SOLD OUT EVENTS FROM ISSUING MORE TICKETS
+CREATE OR REPLACE FUNCTION check_for_sellout ()
+RETURNS trigger AS $$
+BEGIN
+IF (SELECT count(*) FROM ticket
+   WHERE ecode = NEW.ecode) >= (SELECT emax FROM event WHERE ecode = NEW.ecode)
+   THEN RAISE EXCEPTION 'This event is sold out. Cannot issue this ticket.';
+END IF;
+RETURN NEW;
+END $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_for_sellout
+BEFORE INSERT ON ticket
+FOR EACH ROW EXECUTE PROCEDURE
+check_for_sellout();
